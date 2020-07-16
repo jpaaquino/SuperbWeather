@@ -14,22 +14,6 @@ struct CitiesResponse: Codable {
     let list: [List]
 }
 
-// MARK: - CityResponse
-struct CityResponse: Codable {
-    let coord: Coord
-    let weather: [Weather]
-    let base: String
-    let main: Main
-    let visibility: Int
-    let wind: Wind
-    let clouds: Clouds
-    let dt: Int
-    let sys: Sys
-    let timezone, id: Int
-    let name: String
-    let cod: Int
-}
-
 // MARK: - List
 struct List: Codable {
     let coord: Coord
@@ -48,7 +32,6 @@ struct Clouds: Codable {
     let all: Int
 }
 
-// MARK: - Coord
 // MARK: - Coord
 struct Coord: Codable {
     let lon, lat: Double
