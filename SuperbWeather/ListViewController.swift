@@ -7,21 +7,28 @@
 //
 
 import UIKit
+import Kingfisher
 
 class ListViewController: UIViewController {
     
-    var listViewModels: [CityViewModel] = []
+    var listViewModels: [CityCellViewModel] = []
     @IBOutlet weak var tableView: UITableView!
     
     override func viewDidLoad() {
         super.viewDidLoad()
         fetchAll()
+        configureView()
+    }
+    
+    func configureView() {
+        //tableView.tableFooterView = UIView()
+        self.title = "Superb Weather"
     }
     
     func fetchAll() {
         NetworkManager.fetchTemperatures() {[weak self] (response) in
             guard let response = response else {return}
-            self?.listViewModels = response.list.map {CityViewModel(list: $0)}
+            self?.listViewModels = response.list.map {CityCellViewModel(list: $0)}
             DispatchQueue.main.async {
                 self?.tableView.reloadData()
             }
@@ -43,10 +50,10 @@ extension ListViewController: UITableViewDelegate, UITableViewDataSource {
     }
     
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
-        let viewModel = listViewModels[indexPath.row]
         let storyboard = UIStoryboard(name: "Main", bundle: nil)
         let vc = storyboard.instantiateViewController(withIdentifier: "CityViewController") as! CityViewController
-        vc.viewModel = viewModel
+        let list = listViewModels[indexPath.row].list
+        vc.cityViewModel = CityViewModel(list: list)
         self.navigationController?.pushViewController(vc, animated: true)
     }
 }
@@ -54,23 +61,42 @@ extension ListViewController: UITableViewDelegate, UITableViewDataSource {
 class CityCell: UITableViewCell {
     @IBOutlet weak var nameLabel: UILabel!
     @IBOutlet weak var temperatureLabel: UILabel!
+    @IBOutlet weak var iconImageView: UIImageView!
     
-    func configure(with viewModel: CityViewModel) {
+    func configure(with viewModel: CityCellViewModel) {
         nameLabel.text = viewModel.name
-        temperatureLabel.text = String(Int(viewModel.temperature)) + "°"
+        temperatureLabel.text = viewModel.temperature
+        iconImageView.kf.indicatorType = .activity
+        iconImageView.kf.setImage(with: viewModel.iconURL)
     }
     
 }
 
-class CityViewModel {
+class CityCellViewModel {
     
     init(list: List) {
-        self.name = list.name
-        self.temperature = list.main.temp
+        self.list = list
     }
     
-    let temperature: Double
-    let name: String
+    let list: List
+    
+    var temperature: String {
+        let temp = Int(list.main.temp)
+        return "\(temp)°"
+    }
+    
+    var name: String {
+        return list.name
+    }
+    
+    var cityId: Int {
+        return list.id
+    }
+    
+    var iconURL: URL? {
+        guard let iconId = list.weather.first?.icon else {return nil}
+        return URL(string: "http://openweathermap.org/img/w/\(iconId).png")
+    }
     
 }
 
@@ -93,7 +119,9 @@ class NetworkManager {
         ]
         
         guard let url = components.url else {
-            preconditionFailure("Failed to construct URL")
+            print("Failed to construct URL")
+            completion(nil)
+            return
         }
 
         URLSession.shared.dataTask(with: url) { (data, response
@@ -110,7 +138,42 @@ class NetworkManager {
                     completion(nil)
                 }
                 }.resume()
+    }
+    
+    static func fetchForecast(for cityId: Int, completion: @escaping (CityWeatherResponse?) -> Void) {
+        
+        var components = URLComponents()
+        components.scheme = "http"
+        components.host = "api.openweathermap.org"
+        components.path = "/data/2.5/forecast"
 
+        components.queryItems = [
+            URLQueryItem(name: "id", value: String(cityId)),
+            URLQueryItem(name: "units", value: "metric"),
+            URLQueryItem(name: "appid", value: NetworkManager.apiKey)
+        ]
+        
+        guard let url = components.url else {
+            print("Failed to construct URL")
+            completion(nil)
+            return
+        }
+
+        URLSession.shared.dataTask(with: url) { (data, response
+                , error) in
+                guard let data = data else { return }
+                do {
+
+                    let decoder = JSONDecoder()
+                    let cityResponse = try decoder.decode(CityWeatherResponse.self, from: data)
+                    completion(cityResponse)
+
+                } catch let err {
+                    print("Err", err)
+                    completion(nil)
+                }
+                }.resume()
+        
     }
     
 }
